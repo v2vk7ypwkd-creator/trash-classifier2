@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
@@ -25,12 +25,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Run Python script
-        run: python send_kakao.py "${{ github.event.inputs.class_name }}"
-
-      - name: Commit & Push updated token
+      - name: Run python script
+        env:
+          # 깃허브 Secrets에 저장한 카카오 API 키를 파이썬에게 전달합니다.
+          KAKAO_API_KEY: ${{ secrets.KAKAO_API_KEY }}
         run: |
-          git config --global user.name "GitHub Action"
-          git config --global user.email "action@github.com"
-          git add kakao_token.json
-          git diff-index --quiet HEAD || (git commit -m "Auto refresh token [skip ci]" && git push)
+          # main.py 파일을 실행하면서 사용자가 입력한 학급 이름을 같이 보냅니다.
+          python main.py "${{ github.event.inputs.class_name }}"

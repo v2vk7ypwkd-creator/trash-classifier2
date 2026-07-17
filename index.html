@@ -16,6 +16,8 @@
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
 
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js" crossorigin="anonymous"></script>
+
   <style>
     :root {
       --primary-color: #27ae60;
@@ -196,6 +198,27 @@
     .check-btn.completed i { color: var(--primary-color); }
     .check-btn.completed span { color: var(--primary-color); }
 
+    /* 카카오톡 버튼 스타일 */
+    .kakao-btn-container {
+      margin-top: 15px;
+      text-align: center;
+    }
+    .kakao-btn {
+      width: 100%;
+      background-color: #fee500;
+      color: #191919;
+      border: none;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: bold;
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
     /* --- 교사용 당일 대상 학급 모니터링 테이블 --- */
     .teacher-dashboard {
       background: white;
@@ -254,7 +277,6 @@
     .fc .fc-toolbar-title { font-size: 1rem !important; }
     .fc .fc-button { padding: 4px 8px !important; font-size: 12px !important; }
 
-    /* 가로 막대가 끊기지 않고 부드럽게 이어지도록 채우는 스타일 설정 */
     .fc-event {
       border-radius: 4px !important;
       margin: 2px 0 !important;
@@ -371,6 +393,12 @@
           </tr>
         </tbody>
       </table>
+
+      <div class="kakao-btn-container">
+        <button class="kakao-btn" onclick="sendKakaoNotification()">
+          <i class="fa-solid fa-comment"></i> 분리수거 완료 (카톡 전송)
+        </button>
+      </div>
     </div>
 
     <div class="teacher-dashboard" id="teacher-dashboard-panel" style="display: none;">
@@ -442,11 +470,24 @@
     let calendar = null;
     let userRole = "student"; 
     let selectedTeacherGrade = "1";
+    let selectedGrade = "1"; // 추가된 전역 변수
+    let selectedClass = "1"; // 추가된 전역 변수
 
     const daysKR = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
     const now = new Date();
     const todayKR = daysKR[now.getDay()];
     document.getElementById('today-badge').textContent = `오늘은 ${todayKR}입니다`;
+
+    // 3. 제공해주신 카카오 자바스크립트 키 연동 및 초기화 코드 추가
+    const KAKAO_JS_KEY = '4e349338ad2f194ff7d73561e9aee8c4';
+    try {
+      if (!Kakao.isInitialized()) {
+        Kakao.init(KAKAO_JS_KEY);
+        console.log("카카오 SDK 초기화 성공!");
+      }
+    } catch (e) {
+      console.error("카카오 SDK 초기화 중 에러:", e);
+    }
 
     function loadTeacherPassword() {
       db.collection('system_config').doc('teacher_auth').get().then(doc => {
@@ -508,9 +549,9 @@
         const selectedGrade = document.getElementById('teacher-grade-select').value;
         enterApp(selectedGrade, null, "teacher");
       } else {
-        const g = document.getElementById('grade-select').value;
-        const c = document.getElementById('class-select').value;
-        enterApp(g, c, "student");
+        selectedGrade = document.getElementById('grade-select').value;
+        selectedClass = document.getElementById('class-select').value;
+        enterApp(selectedGrade, selectedClass, "student");
       }
     }
 
@@ -602,6 +643,29 @@
         gradeClassId: currentDocId,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
+    }
+
+    // 4. 완료 버튼 터치 시 카카오톡 공유 메시지 생성 및 발송 함수 추가
+    function sendKakaoNotification() {
+      if (!Kakao.isInitialized()) {
+        alert("카카오 초기화 실패! 카카오 디벨로퍼스의 플랫폼 도메인 등록 상태를 확인해 주세요.");
+        return;
+      }
+
+      const generalStatus = document.getElementById('label-general').textContent;
+      const recycleStatus = document.getElementById('label-recycle').textContent;
+
+      const messageText = `[🗑️ 분리수거 체크 알림]\n\n우리 반(${selectedGrade}학년 ${selectedClass}반) 분리수거 상태를 전달합니다!\n\n🔹 일반 쓰레기: ${generalStatus}\n🔹 재활용 품목: ${recycleStatus}\n\n깨끗한 교실을 만들어주어 고맙습니다! 👍`;
+
+      Kakao.Share.sendDefault({
+        objectType: 'text',
+        text: messageText,
+        link: {
+          mobileWebUrl: window.location.href,
+          webUrl: window.location.href,
+        },
+        buttonTitle: '체크 상태 확인하기'
+      });
     }
 
     function startTeacherRealtimeMonitoring(scheduledClasses) {
@@ -815,7 +879,6 @@
         }, { merge: true }).then(() => {
           document.getElementById('helper-name').value = "";
           document.getElementById('helper-date').value = "";
-          // 요청하신 대로 "등록이 완료되었습니다!"로 수정되었습니다.
           alert("등록이 완료되었습니다!");
         });
       });

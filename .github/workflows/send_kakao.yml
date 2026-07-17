@@ -1,0 +1,36 @@
+name: Send Kakao Notification
+
+on:
+  workflow_dispatch:
+    inputs:
+      class_name:
+        description: '학급 이름'
+        required: true
+        default: '2학년 7반'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run Python script
+        run: python send_kakao.py "${{ github.event.inputs.class_name }}"
+
+      - name: Commit & Push updated token
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add kakao_token.json
+          git diff-index --quiet HEAD || (git commit -m "Auto refresh token [skip ci]" && git push)

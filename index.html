@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ko" translate="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="google" content="notranslate">
+  <title>분리수거 체크리스트</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="분리수거체크">
+
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --primary-color: #27ae60;
+      --bg-color: #f8f9fa;
+      --card-bg: #ffffff;
+      --border-color: #e9ecef;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #333;
+    }
+
+    /* 로그인 화면 */
+    #selection-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .select-card {
+      background: white;
+      padding: 30px 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      width: 100%;
+      max-width: 350px;
+    }
+
+    .select-card h2 { text-align: center; margin-top: 0; font-size: 1.4rem; color: var(--primary-color); }
+    .input-group { margin-bottom: 15px; }
+    .input-group label { display: block; font-size: 13px; font-weight: bold; margin-bottom: 5px; color: #666; }
+    .input-group select, .input-group input { width: 100%; padding: 12px; border: 1.5px solid var(--border-color); border-radius: 10px; font-size: 16px; outline: none; box-sizing: border-box; }
+    
+    .role-selector {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .role-btn {
+      flex: 1;
+      padding: 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 10px;
+      background: #f8f9fa;
+      font-weight: bold;
+      cursor: pointer;
+      text-align: center;
+    }
+    .role-btn.active {
+      border-color: var(--primary-color);
+      background: #e6fffa;
+      color: var(--primary-color);
+    }
+
+    #start-btn { width: 100%; padding: 15px; background: var(--primary-color); color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: bold; cursor: pointer; }
+
+    .pw-change-link {
+      display: block;
+      text-align: right;
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-top: 8px;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* 모달 팝업 */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+    .modal-content {
+      background: white;
+      padding: 25px;
+      border-radius: 15px;
+      width: 90%;
+      max-width: 320px;
+    }
+    .modal-content h3 { margin-top: 0; color: #2c3e50; font-size: 16px; }
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .modal-btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .modal-btn.cancel { background: #dfe6e9; color: #2d3436; }
+    .modal-btn.confirm { background: var(--primary-color); color: white; }
+
+    /* 메인 화면 레이아웃 */
+    #main-screen { display: none; padding: 15px; }
+    
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+    header h1 { font-size: 1.1rem; margin: 0; color: #2d3436; }
+    .role-badge { font-size: 11px; padding: 3px 8px; border-radius: 50px; font-weight: bold; margin-left: 5px; }
+    .role-badge.teacher { background: #e74c3c; color: white; }
+    .role-badge.student { background: #3498db; color: white; }
+    .back-btn { padding: 6px 12px; background: #dfe6e9; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; }
+
+    /* --- 학생용 체크리스트 스타일 --- */
+    .checklist-card {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      margin-bottom: 25px;
+    }
+
+    .day-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: var(--primary-color);
+      color: white;
+      border-radius: 50px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+
+    .check-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .check-table th {
+      text-align: center;
+      padding-bottom: 10px;
+      font-size: 14px;
+      color: #7f8c8d;
+    }
+
+    .check-table td {
+      padding: 10px;
+      text-align: center;
+    }
+
+    .check-btn {
+      width: 100%;
+      padding: 20px 0;
+      border-radius: 12px;
+      border: 2px solid #f1f3f5;
+      background: #f8f9fa;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .check-btn i { font-size: 24px; color: #ced4da; }
+    .check-btn span { font-size: 14px; font-weight: bold; color: #adb5bd; }
+
+    .check-btn.completed {
+      background: #e6fffa;
+      border-color: var(--primary-color);
+    }
+    .check-btn.completed i { color: var(--primary-color); }
+    .check-btn.completed span { color: var(--primary-color); }
+
+    /* --- 교사용 당일 대상 학급 모니터링 테이블 --- */
+    .teacher-dashboard {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      margin-bottom: 25px;
+    }
+
+    .dashboard-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    .dashboard-table th, .dashboard-table td {
+      border: 1px solid #edf2f7;
+      padding: 12px 8px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    .dashboard-table th {
+      background: #f7fafc;
+      color: #4a5568;
+      font-weight: bold;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .status-badge.done { background: #e6fffa; color: #319795; }
+    .status-badge.yet { background: #fed7d7; color: #c53030; }
+
+    .no-schedule-msg {
+      padding: 30px 10px;
+      text-align: center;
+      color: #7f8c8d;
+      font-size: 14px;
+    }
+
+    /* --- 캘린더 영역 --- */
+    .calendar-title { font-size: 1rem; font-weight: bold; margin: 20px 0 10px 5px; color: #2d3436; }
+    .calendar-container {
+      background: white;
+      padding: 15px;
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+      margin-bottom: 50px;
+    }
+
+    .fc .fc-toolbar-title { font-size: 1rem !important; }
+    .fc .fc-button { padding: 4px 8px !important; font-size: 12px !important; }
+
+    /* 가로 막대가 끊기지 않고 부드럽게 이어지도록 채우는 스타일 설정 */
+    .fc-event {
+      border-radius: 4px !important;
+      margin: 2px 0 !important;
+      padding: 2px 4px !important;
+    }
+    .fc-event-title {
+      text-align: center !important;
+      font-weight: bold !important;
+      font-size: 13px !important;
+    }
+
+    /* 등록 폼 스타일 (교사전용) */
+    .add-event-section { display: none; margin-top: 20px; border-top: 1px dashed #ddd; padding-top: 20px; }
+    .add-event-section input, .add-event-section select { width: 100%; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+    .save-btn { width: 100%; padding: 10px; background: #34495e; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <div id="selection-screen">
+    <div class="select-card">
+      <h2>♻️ 분리수거 체크리스트</h2>
+      
+      <div class="role-selector">
+        <button class="role-btn active" id="role-student-btn" onclick="selectRole('student')">학생용</button>
+        <button class="role-btn" id="role-teacher-btn" onclick="selectRole('teacher')">교사용</button>
+      </div>
+
+      <div id="student-selectors">
+        <div class="input-group">
+          <label>학년</label>
+          <select id="grade-select">
+            <option value="1">1학년</option>
+            <option value="2">2학년</option>
+            <option value="3">3학년</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>반</label>
+          <select id="class-select">
+            <option value="1">1반</option><option value="2">2반</option><option value="3">3반</option><option value="4">4반</option><option value="5">5반</option>
+            <option value="6">6반</option><option value="7">7반</option><option value="8">8반</option><option value="9">9반</option><option value="10">10반</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="teacher-selectors" style="display: none;">
+        <div class="input-group">
+          <label>담당 학년 선택</label>
+          <select id="teacher-grade-select">
+            <option value="1">1학년 담당</option>
+            <option value="2">2학년 담당</option>
+            <option value="3">3학년 담당</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label>교사용 통합 비밀번호</label>
+          <input type="password" id="pw-input" placeholder="비밀번호를 입력하세요">
+          <span class="pw-change-link" onclick="openPwModal()">교사용 비밀번호 변경</span>
+        </div>
+      </div>
+
+      <button id="start-btn">로그인</button>
+    </div>
+  </div>
+
+  <div class="modal" id="pw-modal">
+    <div class="modal-content">
+      <h3>🔑 교사용 비밀번호 변경</h3>
+      <div class="input-group">
+        <label>마스터 비밀번호</label>
+        <input type="password" id="master-pw" placeholder="마스터 비번 입력">
+      </div>
+      <div class="input-group">
+        <label>새로운 교사용 비밀번호</label>
+        <input type="password" id="new-teacher-pw" placeholder="새 비밀번호 입력">
+      </div>
+      <div class="modal-buttons">
+        <button class="modal-btn cancel" onclick="closePwModal()">취소</button>
+        <button class="modal-btn confirm" onclick="changeTeacherPassword()">변경 적용</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="main-screen">
+    <header>
+      <h1 id="class-info-text">모니터링 시스템</h1>
+      <button class="back-btn" onclick="location.reload()">로그아웃</button>
+    </header>
+
+    <div class="checklist-card" id="student-panel" style="display: none;">
+      <div class="day-badge" id="today-badge">오늘은 요일입니다</div>
+      <table class="check-table">
+        <thead>
+          <tr>
+            <th>일반 쓰레기</th>
+            <th>재활용 품목</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <button class="check-btn" id="btn-general" onclick="toggleCheck('general')">
+                <i class="fa-solid fa-circle-check"></i>
+                <span id="label-general">미완료</span>
+              </button>
+            </td>
+            <td>
+              <button class="check-btn" id="btn-recycle" onclick="toggleCheck('recycle')">
+                <i class="fa-solid fa-circle-check"></i>
+                <span id="label-recycle">미완료</span>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="teacher-dashboard" id="teacher-dashboard-panel" style="display: none;">
+      <div class="day-badge" id="teacher-dashboard-title" style="background-color: #e74c3c;">📋 오늘 분리배출 담당 학급 현황</div>
+      <table class="dashboard-table" id="dashboard-table-element">
+        <thead>
+          <tr>
+            <th>학년-학반</th>
+            <th>일반 쓰레기</th>
+            <th>재활용</th>
+          </tr>
+        </thead>
+        <tbody id="dashboard-rows">
+          </tbody>
+      </table>
+      <div id="no-schedule-message" class="no-schedule-msg" style="display: none;">
+        📭 오늘 예정된 분리수거 학급이 없습니다.
+      </div>
+    </div>
+
+    <div class="calendar-title">🗓️ 분리수거 주간 일정</div>
+    <div class="calendar-container">
+      <div id="calendar"></div>
+      
+      <div class="add-event-section" id="teacher-control-panel">
+        <p style="font-size: 13px; font-weight: bold; margin-bottom: 8px; color: #e74c3c;">⚙️ [교사 권한] 주간 도우미 예약 등록</p>
+        
+        <div class="input-group" style="margin-bottom: 10px; display: none;">
+          <label style="font-size: 11px; color: #7f8c8d;">배정할 학년</label>
+          <select id="schedule-grade">
+            <option value="1">1학년</option><option value="2">2학년</option><option value="3">3학년</option>
+          </select>
+        </div>
+
+        <div class="input-group" style="margin-bottom: 10px;">
+          <label style="font-size: 11px; color: #7f8c8d;">담당 도우미 반 지정 (반만 숫자나 문자로 입력, 예: 1반, 4반, 8반)</label>
+          <input type="text" id="helper-name" placeholder="예: 1반, 4반, 8반">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 11px; color: #7f8c8d; display: block; margin-bottom: 4px;">시작 날짜 (그 주 월요일만 선택)</label>
+          <input type="date" id="helper-date" style="margin-bottom: 0;">
+        </div>
+        <button class="save-btn" onclick="addHelperSchedule5Days()">주간 도우미 5일 일괄 등록</button>
+      </div>
+    </div>
+  </div>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAznDWXnFcYKmiR30tYhdF6l_El-nafvV0",
+      authDomain: "calender-cf794.firebaseapp.com",
+      projectId: "calender-cf794",
+      storageBucket: "calender-cf794.firebasestorage.app",
+      messagingSenderId: "353556102566",
+      appId: "1:353556102566:web:8ff9a1f6010c14ad146367"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const MASTER_PASSWORD = "0428"; 
+    let teacherPassword = "admin";
+
+    let currentDocId = "";
+    let todayDocId = "";
+    let calendar = null;
+    let userRole = "student"; 
+    let selectedTeacherGrade = "1";
+
+    const daysKR = ["일요일", "월요일", "화요일", "수요일", "목요일", "금요일", "토요일"];
+    const now = new Date();
+    const todayKR = daysKR[now.getDay()];
+    document.getElementById('today-badge').textContent = `오늘은 ${todayKR}입니다`;
+
+    function loadTeacherPassword() {
+      db.collection('system_config').doc('teacher_auth').get().then(doc => {
+        if (doc.exists) {
+          teacherPassword = doc.data().password;
+        } else {
+          db.collection('system_config').doc('teacher_auth').set({ password: "admin" });
+        }
+      });
+    }
+    loadTeacherPassword();
+
+    function selectRole(role) {
+      userRole = role;
+      document.getElementById('role-student-btn').classList.toggle('active', role === 'student');
+      document.getElementById('role-teacher-btn').classList.toggle('active', role === 'teacher');
+      document.getElementById('student-selectors').style.display = (role === 'student') ? 'block' : 'none';
+      document.getElementById('teacher-selectors').style.display = (role === 'teacher') ? 'block' : 'none';
+    }
+
+    function openPwModal() {
+      document.getElementById('pw-modal').style.display = 'flex';
+    }
+    function closePwModal() {
+      document.getElementById('pw-modal').style.display = 'none';
+      document.getElementById('master-pw').value = '';
+      document.getElementById('new-teacher-pw').value = '';
+    }
+
+    function changeTeacherPassword() {
+      const masterInput = document.getElementById('master-pw').value.trim();
+      const newPwInput = document.getElementById('new-teacher-pw').value.trim();
+
+      if (masterInput !== MASTER_PASSWORD) {
+        alert("마스터 비밀번호가 틀렸습니다.");
+        return;
+      }
+      if (!newPwInput) {
+        alert("새로운 교사용 비밀번호를 입력해 주세요.");
+        return;
+      }
+
+      db.collection('system_config').doc('teacher_auth').set({
+        password: newPwInput
+      }).then(() => {
+        alert("교사용 통합 비밀번호가 변경되었습니다!");
+        teacherPassword = newPwInput;
+        closePwModal();
+      });
+    }
+
+    function executeLogin() {
+      if (userRole === "teacher") {
+        const pw = document.getElementById('pw-input').value.trim();
+        if(pw !== teacherPassword) {
+          alert("교사용 비밀번호가 올바르지 않습니다.");
+          return;
+        }
+        const selectedGrade = document.getElementById('teacher-grade-select').value;
+        enterApp(selectedGrade, null, "teacher");
+      } else {
+        const g = document.getElementById('grade-select').value;
+        const c = document.getElementById('class-select').value;
+        enterApp(g, c, "student");
+      }
+    }
+
+    document.getElementById('start-btn').onclick = executeLogin;
+
+    document.getElementById('grade-select').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') executeLogin();
+    });
+    document.getElementById('class-select').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') executeLogin();
+    });
+    document.getElementById('teacher-grade-select').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') executeLogin();
+    });
+    document.getElementById('pw-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') executeLogin();
+    });
+    document.getElementById('new-teacher-pw').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') changeTeacherPassword();
+    });
+    document.getElementById('master-pw').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') changeTeacherPassword();
+    });
+
+    function enterApp(g, c, role) {
+      userRole = role;
+      document.getElementById('selection-screen').style.display = 'none';
+      document.getElementById('main-screen').style.display = 'block';
+      
+      if(role === 'teacher') {
+        selectedTeacherGrade = g;
+        document.getElementById('schedule-grade').value = g;
+
+        const tag = `<span class="role-badge teacher">${g}학년 교사 대시보드</span>`;
+        document.getElementById('class-info-text').innerHTML = `🏫 ${g}학년 통합 모니터링 ${tag}`;
+        document.getElementById('teacher-dashboard-title').textContent = `📋 오늘 ${g}학년 분리배출 담당 학급 현황`;
+        
+        document.getElementById('student-panel').style.display = "none";
+        document.getElementById('teacher-dashboard-panel').style.display = "block";
+        document.getElementById('teacher-control-panel').style.display = "block";
+        
+        initCalendar(g); 
+      } else {
+        currentDocId = `RECYCLE_G${g}_C${c}`;
+        todayDocId = now.toISOString().split('T')[0] + "_" + currentDocId;
+
+        const tag = `<span class="role-badge student">학생</span>`;
+        document.getElementById('class-info-text').innerHTML = `🏫 ${g}학년 ${c}반 상황 ${tag}`;
+        document.getElementById('student-panel').style.display = "block";
+        document.getElementById('teacher-dashboard-panel').style.display = "none";
+        document.getElementById('teacher-control-panel').style.display = "none";
+        
+        initCalendar(g);
+        syncStudentChecklist();
+      }
+    }
+
+    function syncStudentChecklist() {
+      db.collection('daily_checks').doc(todayDocId).onSnapshot(doc => {
+        if(doc.exists) {
+          const data = doc.data();
+          updateBtnUI('general', data.general);
+          updateBtnUI('recycle', data.recycle);
+        } else {
+          updateBtnUI('general', false);
+          updateBtnUI('recycle', false);
+        }
+      });
+    }
+
+    function updateBtnUI(type, status) {
+      const btn = document.getElementById(`btn-${type}`);
+      const label = document.getElementById(`label-${type}`);
+      if(status) {
+        btn.classList.add('completed');
+        label.textContent = "완료됨";
+      } else {
+        btn.classList.remove('completed');
+        label.textContent = "미완료";
+      }
+    }
+
+    function toggleCheck(type) {
+      const btn = document.getElementById(`btn-${type}`);
+      const nextStatus = !btn.classList.contains('completed');
+
+      db.collection('daily_checks').doc(todayDocId).set({
+        [type]: nextStatus,
+        gradeClassId: currentDocId,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+
+    function startTeacherRealtimeMonitoring(scheduledClasses) {
+      const todayStr = now.toISOString().split('T')[0];
+      
+      db.collection('daily_checks').onSnapshot(snapshot => {
+        const rowsContainer = document.getElementById('dashboard-rows');
+        const tableElement = document.getElementById('dashboard-table-element');
+        const noScheduleMsg = document.getElementById('no-schedule-message');
+        
+        rowsContainer.innerHTML = "";
+
+        if (!scheduledClasses || scheduledClasses.length === 0) {
+          tableElement.style.display = 'none';
+          noScheduleMsg.style.display = 'block';
+          return;
+        }
+
+        tableElement.style.display = 'table';
+        noScheduleMsg.style.display = 'none';
+
+        const activeMonitoringData = {};
+        scheduledClasses.forEach(item => {
+          const key = `RECYCLE_G${item.grade}_C${item.classNum}`;
+          activeMonitoringData[key] = {
+            grade: item.grade,
+            sClass: item.classNum,
+            general: false,
+            recycle: false
+          };
+        });
+
+        snapshot.forEach(doc => {
+          if (doc.id.startsWith(todayStr)) {
+            const data = doc.data();
+            const gcId = data.gradeClassId;
+            if (activeMonitoringData[gcId]) {
+              activeMonitoringData[gcId].general = data.general || false;
+              activeMonitoringData[gcId].recycle = data.recycle || false;
+            }
+          }
+        });
+
+        Object.keys(activeMonitoringData).forEach(key => {
+          const item = activeMonitoringData[key];
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><b>${item.grade}학년 ${item.sClass}반</b></td>
+            <td>
+              <span class="status-badge ${item.general ? 'done' : 'yet'}">
+                ${item.general ? '완료' : '미완료'}
+              </span>
+            </td>
+            <td>
+              <span class="status-badge ${item.recycle ? 'done' : 'yet'}">
+                ${item.recycle ? '완료' : '미완료'}
+              </span>
+            </td>
+          `;
+          rowsContainer.appendChild(tr);
+        });
+      });
+    }
+
+    function checkThisWeekHelpers(events) {
+      if (!events || events.length === 0) return;
+
+      const current = new Date();
+      const first = current.getDate() - current.getDay() + (current.getDay() === 0 ? -6 : 1); 
+      const monday = new Date(current.setDate(first));
+      monday.setHours(0,0,0,0);
+
+      const friday = new Date(monday);
+      friday.setDate(monday.getDate() + 4);
+      friday.setHours(23,59,59,999);
+
+      let weeklyHelpers = [];
+
+      events.forEach(event => {
+        const eventDate = new Date(event.start);
+        if (eventDate >= monday && eventDate <= friday) {
+          const cleanTitle = event.title.replace("🧹", "").trim();
+          if(!weeklyHelpers.includes(cleanTitle)) {
+            weeklyHelpers.push(cleanTitle);
+          }
+        }
+      });
+
+      if (weeklyHelpers.length > 0) {
+        alert(`🔔 [이번 주 분리수거 도우미 알림]\n\n이번 주 분리수거 담당 반은 [ ${weeklyHelpers.join(', ')} ] 입니다!`);
+      }
+    }
+
+    function extractTodayScheduledClasses(events, currentGrade) {
+      const todayStr = now.toISOString().split('T')[0];
+      const scheduled = [];
+
+      events.forEach(event => {
+        if (event.start <= todayStr && event.end > todayStr) {
+          const title = event.title.replace("🧹", "").trim();
+          const eventGrade = String(event.grade || currentGrade);
+
+          if (eventGrade === String(currentGrade)) {
+            const classesFound = title.match(/\d+/g);
+            if (classesFound) {
+              classesFound.forEach(cNum => {
+                scheduled.push({
+                  grade: parseInt(eventGrade),
+                  classNum: parseInt(cNum)
+                });
+              });
+            }
+          }
+        }
+      });
+      return scheduled;
+    }
+
+    function initCalendar(grade) {
+      const targetGrade = grade || "1";
+      const docId = `CALENDAR_GRADE_${targetGrade}`;
+      const calendarEl = document.getElementById('calendar');
+      
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ko',
+        headerToolbar: { left: 'prev', center: 'title', right: 'next' },
+        events: [],
+        eventDisplay: 'block',
+        eventClick: function(info) {
+          if (userRole !== 'teacher') return;
+          
+          if (confirm(`'${info.event.title}' 일정을 삭제하시겠습니까?`)) {
+            db.collection('recycle_new').doc(docId).get().then(doc => {
+              if (doc.exists) {
+                const events = doc.data().events || [];
+                const updatedEvents = events.filter(e => e.id !== info.event.id);
+                
+                db.collection('recycle_new').doc(docId).update({ events: updatedEvents }).then(() => {
+                  alert("선택하신 주간 일정이 삭제되었습니다.");
+                });
+              }
+            });
+          }
+        }
+      });
+      calendar.render();
+
+      db.collection('recycle_new').doc(docId).onSnapshot(doc => {
+        if(doc.exists) {
+          const events = doc.data().events || [];
+          calendar.removeAllEvents();
+          calendar.addEventSource(events);
+
+          if (userRole === 'teacher') {
+            const todayScheduled = extractTodayScheduledClasses(events, targetGrade);
+            startTeacherRealtimeMonitoring(todayScheduled);
+          } else {
+            setTimeout(() => {
+              checkThisWeekHelpers(events);
+            }, 500);
+          }
+        } else {
+          if (userRole === 'teacher') {
+            startTeacherRealtimeMonitoring([]);
+          }
+        }
+      });
+    }
+
+    function addHelperSchedule5Days() {
+      if (userRole !== 'teacher') return;
+
+      const grade = document.getElementById('schedule-grade').value;
+      const docId = `CALENDAR_GRADE_${grade}`;
+
+      const name = document.getElementById('helper-name').value.trim();
+      const startDateVal = document.getElementById('helper-date').value;
+      
+      if(!name || !startDateVal) {
+        alert("도우미 반 이름과 시작 날짜를 선택해 주세요.");
+        return;
+      }
+
+      const start = new Date(startDateVal);
+      const startDateString = start.toISOString().split('T')[0];
+      
+      const end = new Date(startDateVal);
+      end.setDate(end.getDate() + 5); 
+      const endDateString = end.toISOString().split('T')[0];
+
+      const baseId = Date.now().toString();
+
+      const singleLongEvent = {
+        id: `${baseId}_long_bar`,
+        title: "🧹 " + name,
+        start: startDateString,
+        end: endDateString,
+        backgroundColor: '#27ae60',
+        borderColor: '#27ae60',
+        allDay: true,
+        grade: grade 
+      };
+
+      db.collection('recycle_new').doc(docId).get().then(doc => {
+        const existingEvents = doc.exists ? (doc.data().events || []) : [];
+        const newEventList = existingEvents.concat([singleLongEvent]);
+
+        db.collection('recycle_new').doc(docId).set({
+          events: newEventList
+        }, { merge: true }).then(() => {
+          document.getElementById('helper-name').value = "";
+          document.getElementById('helper-date').value = "";
+          // 요청하신 대로 "등록이 완료되었습니다!"로 수정되었습니다.
+          alert("등록이 완료되었습니다!");
+        });
+      });
+    }
+  </script>
+</body>
+</html>
